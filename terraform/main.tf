@@ -29,6 +29,7 @@ resource "aws_subnet" "public_b" {
     Name = "project3-public-subnet-b"
   }
 }
+
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -36,6 +37,7 @@ resource "aws_internet_gateway" "main" {
     Name = "project3-igw"
   }
 }
+
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -48,6 +50,7 @@ resource "aws_route_table" "public" {
     Name = "project3-public-route-table"
   }
 }
+
 resource "aws_route_table_association" "public_a" {
   subnet_id      = aws_subnet.public_a.id
   route_table_id = aws_route_table.public.id
@@ -111,6 +114,7 @@ resource "aws_security_group" "web" {
     Name = "project3-web-sg"
   }
 }
+
 # EC2 web server in Availability Zone A
 resource "aws_instance" "web_a" {
   ami           = "ami-0c101f26f147fa7fd"
@@ -121,11 +125,11 @@ resource "aws_instance" "web_a" {
 
   user_data = <<-EOF
               #!/bin/bash
-              apt-get update -y
-              apt-get install -y nginx
+              dnf update -y
+              dnf install -y nginx
               systemctl enable nginx
               systemctl start nginx
-              echo "<h1>Project 3 - Web Server A</h1><p>Availability Zone: us-east-1a</p>" > /var/www/html/index.html
+              echo "<h1>Project 3 - Web Server A</h1><p>Availability Zone: us-east-1a</p>" > /usr/share/nginx/html/index.html
               EOF
 
   tags = {
@@ -143,14 +147,79 @@ resource "aws_instance" "web_b" {
 
   user_data = <<-EOF
               #!/bin/bash
-              apt-get update -y
-              apt-get install -y nginx
+              dnf update -y
+              dnf install -y nginx
               systemctl enable nginx
               systemctl start nginx
-              echo "<h1>Project 3 - Web Server B</h1><p>Availability Zone: us-east-1b</p>" > /var/www/html/index.html
+              echo "<h1>Project 3 - Web Server B</h1><p>Availability Zone: us-east-1b</p>" > /usr/share/nginx/html/index.html
               EOF
 
   tags = {
     Name = "project3-web-server-b"
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "app" {
+  name               = "project3-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+
+  subnets = [
+    aws_subnet.public_a.id,
+    aws_subnet.public_b.id
+  ]
+
+  tags = {
+    Name = "project3-alb"
+  }
+}
+
+# Target group for EC2 web servers
+resource "aws_lb_target_group" "web" {
+  name     = "project3-web-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "project3-web-target-group"
+  }
+}
+
+# Attach Web Server A to target group
+resource "aws_lb_target_group_attachment" "web_a" {
+  target_group_arn = aws_lb_target_group.web.arn
+  target_id        = aws_instance.web_a.id
+  port             = 80
+}
+
+# Attach Web Server B to target group
+resource "aws_lb_target_group_attachment" "web_b" {
+  target_group_arn = aws_lb_target_group.web.arn
+  target_id        = aws_instance.web_b.id
+  port             = 80
+}
+
+# HTTP listener
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
   }
 }
