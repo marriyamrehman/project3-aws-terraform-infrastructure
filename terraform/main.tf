@@ -111,3 +111,46 @@ resource "aws_security_group" "web" {
     Name = "project3-web-sg"
   }
 }
+# EC2 web server in Availability Zone A
+resource "aws_instance" "web_a" {
+  ami           = "ami-0c101f26f147fa7fd"
+  instance_type = "t3.micro"
+  subnet_id     = aws_subnet.public_a.id
+
+  vpc_security_group_ids = [aws_security_group.web.id]
+
+  user_data = <<-EOF
+              #!/bin/bash
+              apt-get update -y
+              apt-get install -y nginx
+              systemctl enable nginx
+              systemctl start nginx
+              echo "<h1>Project 3 - Web Server A</h1><p>Availability Zone: us-east-1a</p>" > /var/www/html/index.html
+              EOF
+
+  tags = {
+    Name = "project3-web-server-a"
+  }
+}
+
+# EC2 web server in Availability Zone B
+resource "aws_instance" "web_b" {
+  ami           = "ami-0c101f26f147fa7fd"
+  instance_type = "t3.micro"
+  subnet_id     = aws_subnet.public_b.id
+
+  vpc_security_group_ids = [aws_security_group.web.id]
+
+  user_data = <<-EOF
+              #!/bin/bash
+              apt-get update -y
+              apt-get install -y nginx
+              systemctl enable nginx
+              systemctl start nginx
+              echo "<h1>Project 3 - Web Server B</h1><p>Availability Zone: us-east-1b</p>" > /var/www/html/index.html
+              EOF
+
+  tags = {
+    Name = "project3-web-server-b"
+  }
+}
